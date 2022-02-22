@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <iostream>
 #include <memory>
+#include <thread>
 
 #include <libcamera/libcamera.h>
 #include <opencv2/opencv.hpp>
@@ -25,8 +26,6 @@ using namespace libcamera;
 class SimpleCam
 {
 public:
-    static std::shared_ptr<Camera> camera;
-    static EventLoop loop;
 
     static void processRequest(Request *request);
     static void requestComplete(Request *request);
@@ -36,6 +35,9 @@ public:
     int go();
     int finish();
 
+    std::shared_ptr<Camera> camera;
+    EventLoop loop;
+    std::unique_ptr<std::thread> aThread;
     Stream *stream;
     FrameBufferAllocator *allocator;
     std::unique_ptr<CameraManager> cm;

@@ -7,6 +7,7 @@
 
 #include "SimpleCam.h"
 
+#include <chrono>
 #include <iomanip>
 #include <iostream>
 #include <memory>
@@ -21,9 +22,6 @@
 #define TIMEOUT_SEC 3
 
 using namespace libcamera;
-
-std::shared_ptr<Camera> SimpleCam::camera;
-EventLoop SimpleCam::loop;
 
 /*
  * --------------------------------------------------------------------
@@ -42,15 +40,20 @@ EventLoop SimpleCam::loop;
 
 void SimpleCam::requestComplete(Request *request)
 {
-    if (request->status() == Request::RequestCancelled)
-        return;
+    // if (request->status() == Request::RequestCancelled)
+    // {
+    //     return;
+    // }
 
-    loop.callLater(std::bind(&processRequest, request));
-}
+    std::cout << "Completed " << (void *)request << std::endl;
+    // loop.callLater(std::bind(&processRequest, request));
+    //     // processRequest(request);
+    // }
 
-void SimpleCam::processRequest(Request *request)
-{
+    // void SimpleCam::processRequest(Request *request)
+    // {
     const Request::BufferMap &buffers = request->buffers();
+    // std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     for (auto bufferPair : buffers)
     {
@@ -93,7 +96,7 @@ void SimpleCam::processRequest(Request *request)
 
     /* Re-queue the Request to the camera. */
     request->reuse(Request::ReuseBuffers);
-    camera->queueRequest(request);
+    // camera->queueRequest(request);
 }
 
 /*
@@ -137,6 +140,7 @@ std::string SimpleCam::cameraName(Camera *camera)
 
     return name;
 }
+void h(Request *r) { std::cout << "C\n"; };
 
 int SimpleCam::start()
 {
@@ -381,6 +385,11 @@ int SimpleCam::start()
         }
 
         const std::unique_ptr<FrameBuffer> &buffer = buffers[i];
+        for (auto &plane : buffer->planes())
+        {
+            std::cout << "buffer " << i << " length " << plane.length << " at " << plane.offset << std::endl;
+        }
+
         int ret = request->addBuffer(stream, buffer.get());
         if (ret < 0)
         {
@@ -435,13 +444,56 @@ int SimpleCam::start()
      * Camera::requestCompleted Signal is called.
      */
     camera->start();
+    aThread = std::make_unique<std::thread>([&]() { loop.exec(); });
     return EXIT_SUCCESS;
 }
 
+// std::unique_ptr<Request> request;
 int SimpleCam::go()
 {
+    // const std::vector<std::unique_ptr<FrameBuffer>> &buffers = allocator->buffers(stream);
+    // // int i = 0;
+    // for (unsigned int i = 0; i < buffers.size(); ++i)
+    // {
+    //     std::unique_ptr<Request> request = camera->createRequest();
+    //     if (!request)
+    //     {
+    //         std::cerr << "Can't create request" << std::endl;
+    //         return EXIT_FAILURE;
+    //     }
+
+    //     const std::unique_ptr<FrameBuffer> &buffer = buffers[i];
+    //     for (auto &plane : buffer->planes())
+    //     {
+    //         std::cout << "buffer " << i << " length " << plane.length << " at " << plane.offset << std::endl;
+    //     }
+
+    //     int ret = request->addBuffer(stream, buffer.get());
+    //     if (ret < 0)
+    //     {
+    //         std::cerr << "Can't set buffer for request" << std::endl;
+    //         return EXIT_FAILURE;
+    //     }
+
+    //     /*
+    //      * Controls can be added to a request on a per frame basis.
+    //      */
+    //     // ControlList &controls = request->controls();
+    //     // controls.set(controls::Brightness, (float)i / (buffers.size() - 1) * 2 - 1); //0.5);
+    //     // std::cout << "request " << i << " brightness=" << controls.get(controls::Brightness) << std::endl;
+    //     request->controls().set(controls::AnalogueGain, 100000);  //(float)i / (buffers.size() - 1) * 2 - 1); // 0.5);
+    //     request->controls().set(controls::ExposureTime, 100000);  //(float)i / (buffers.size() - 1) * 2 - 1); // 0.5);
+    //     request->controls().set(controls::ExposureValue, 100000); //(float)i / (buffers.size() - 1) * 2 - 1); // 0.5);
+    //     // request->controls().set(controls::ColourGains, 16);       //(float)i / (buffers.size() - 1) * 2 - 1); // 0.5);
+
+    //     requests.push_back(std::move(request));
+    // }
+
     for (std::unique_ptr<Request> &request : requests)
+    {
+        std::cout << "Queued " << (void *)request.get() << std::endl;
         camera->queueRequest(request.get());
+    }
 
     /*
      * --------------------------------------------------------------------
@@ -450,15 +502,17 @@ int SimpleCam::go()
      * In order to dispatch events received from the video devices, such
      * as buffer completions, an event loop has to be run.
      */
-    loop.timeout(TIMEOUT_SEC);
-    int ret = loop.exec();
-    std::cout << "Capture ran for " << TIMEOUT_SEC << " seconds and "
-              << "stopped with exit status: " << ret << std::endl;
+    // loop.timeout(20); // TIMEOUT_SEC);
+    // int ret = loop.exec();
+    // std::cout << "Capture ran for " << TIMEOUT_SEC << " seconds and "
+    //           << "stopped with exit status: " << ret << std::endl;
     return EXIT_SUCCESS;
 }
 
 int SimpleCam::finish()
 {
+    aThread->join();
+
     /*
      * --------------------------------------------------------------------
      * Clean Up
